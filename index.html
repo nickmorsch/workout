@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#111111" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<title>Nick's Daily Workout</title>
+<style>
+  :root{
+    --bg:#0d0f12; --card:#171a20; --text:#f6f7f9; --muted:#9aa3af;
+    --accent:#41d17d; --danger:#ff6b6b; --line:#2a2f38;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:linear-gradient(180deg,#0b0d10,#151922);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    display:flex; justify-content:center; align-items:center; padding:20px;
+  }
+  .app{width:min(100%,480px)}
+  .card{
+    background:rgba(23,26,32,.96); border:1px solid var(--line); border-radius:28px;
+    padding:24px; box-shadow:0 20px 50px rgba(0,0,0,.35)
+  }
+  h1{margin:0 0 6px;font-size:28px}
+  .sub{color:var(--muted);margin-bottom:22px}
+  .progress{height:10px;background:#262b33;border-radius:99px;overflow:hidden;margin:14px 0 20px}
+  .progress > div{height:100%;width:0;background:var(--accent);transition:width .3s}
+  .figure{
+    height:150px;border-radius:22px;background:#11151b;display:flex;align-items:center;
+    justify-content:center;margin-bottom:18px;position:relative;overflow:hidden
+  }
+  .person{font-size:82px;animation:pulse 1.2s infinite ease-in-out}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(.92)}}
+  .label{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+  .exercise{font-size:30px;font-weight:800;margin:5px 0}
+  .set{font-size:18px;color:var(--muted)}
+  .counter{font-size:84px;line-height:1;font-weight:900;text-align:center;margin:20px 0 10px}
+  .counter.small{font-size:62px}
+  .hint{text-align:center;color:var(--muted);min-height:24px}
+  .buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}
+  button{
+    border:0;border-radius:18px;padding:16px;font-size:18px;font-weight:800;cursor:pointer
+  }
+  .primary{background:var(--accent);color:#07110b;grid-column:1/-1}
+  .secondary{background:#252a33;color:var(--text)}
+  .danger{background:#3b2022;color:#ffdede}
+  .stats{display:none;text-align:center}
+  .stats h2{font-size:34px;margin:12px 0}
+  .checklist{text-align:left;background:#11151b;border-radius:18px;padding:16px;margin-top:18px}
+  .checklist div{padding:8px 0;border-bottom:1px solid #232833}
+  .checklist div:last-child{border-bottom:0}
+  .settings{margin-top:16px;color:var(--muted);font-size:14px}
+  input[type="range"]{width:100%}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="card" id="workoutCard">
+    <h1>Dagelijkse training</h1>
+    <div class="sub">Borst, triceps, benen en core</div>
+
+    <div class="progress"><div id="bar"></div></div>
+
+    <div class="figure"><div class="person" id="person">🏋️</div></div>
+
+    <div class="label" id="phaseLabel">Klaar om te starten</div>
+    <div class="exercise" id="exerciseName">Nick's workout</div>
+    <div class="set" id="setLabel">12 sets + 1 minuut luchtfietsen</div>
+
+    <div class="counter" id="counter">START</div>
+    <div class="hint" id="hint">Druk op start en volg het tempo.</div>
+
+    <div class="buttons">
+      <button class="primary" id="startBtn">Start training</button>
+      <button class="secondary" id="pauseBtn" disabled>Pauze</button>
+      <button class="danger" id="skipBtn" disabled>Overslaan</button>
+    </div>
+
+    <div class="settings">
+      Tempo per herhaling: <strong><span id="tempoValue">2.0</span> sec</strong>
+      <input id="tempo" type="range" min="1.2" max="3.0" step="0.2" value="2.0">
+    </div>
+  </div>
+
+  <div class="card stats" id="doneCard">
+    <div style="font-size:72px">🔥</div>
+    <h2>Training voltooid</h2>
+    <div class="sub" id="durationText"></div>
+    <div class="checklist">
+      <div>✓ Knie-push-ups: 3 × 20</div>
+      <div>✓ Diamond push-ups: 3 × 15</div>
+      <div>✓ Normale push-ups: 3 × 10</div>
+      <div>✓ Squats: 3 × 20</div>
+      <div>✓ Luchtfietsen: 1 minuut</div>
+    </div>
+    <div style="font-size:24px;font-weight:800;margin:20px 0" id="streak"></div>
+    <button class="primary" onclick="location.reload()">Opnieuw trainen</button>
+  </div>
+</div>
+
+<script>
+const plan = [
+  {name:"Knie-push-ups", icon:"🤸", reps:20, sets:3},
+  {name:"Diamond push-ups", icon:"💎", reps:15, sets:3},
+  {name:"Normale push-ups", icon:"💪", reps:10, sets:3},
+  {name:"Squats", icon:"🏋️", reps:20, sets:3},
+  {name:"Luchtfietsen", icon:"🚴", seconds:60, sets:1}
+];
+
+let steps = [];
+plan.forEach((ex, exIndex) => {
+  for(let s=1; s<=ex.sets; s++){
+    steps.push({type:"work", exIndex, set:s, totalSets:ex.sets});
+    if(!(exIndex===plan.length-1 && s===ex.sets)) steps.push({type:"rest", seconds:30});
+  }
+});
+
+let index = -1, timer=null, paused=false, startTime=null, remaining=0;
+let audioCtx;
+
+const $ = id => document.getElementById(id);
+const totalWork = steps.filter(s=>s.type==="work").length;
+
+function beep(freq=700, duration=.12){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value=freq; gain.gain.value=.08;
+    osc.start(); gain.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration);
+    osc.stop(audioCtx.currentTime+duration);
+  }catch(e){}
+}
+
+function updateProgress(){
+  const completed = steps.slice(0,index).filter(s=>s.type==="work").length;
+  $("bar").style.width = `${Math.min(100,(completed/totalWork)*100)}%`;
+}
+
+function startWorkout(){
+  startTime = Date.now();
+  $("startBtn").disabled=true; $("pauseBtn").disabled=false; $("skipBtn").disabled=false;
+  nextStep();
+}
+
+function nextStep(){
+  clearInterval(timer);
+  index++;
+  updateProgress();
+  if(index >= steps.length){ finish(); return; }
+  const step = steps[index];
+  paused=false; $("pauseBtn").textContent="Pauze";
+  if(step.type==="rest") startRest(step.seconds);
+  else startWork(step);
+}
+
+function startWork(step){
+  const ex = plan[step.exIndex];
+  $("phaseLabel").textContent="Oefening";
+  $("exerciseName").textContent=ex.name;
+  $("setLabel").textContent=`Set ${step.set} van ${step.totalSets}`;
+  $("person").textContent=ex.icon;
+
+  if(ex.seconds){
+    remaining=ex.seconds;
+    $("counter").classList.add("small");
+    $("hint").textContent="Blijf continu bewegen";
+    renderTime();
+    timer=setInterval(()=>{
+      if(paused) return;
+      remaining--;
+      if(remaining<=3 && remaining>0) beep(850,.08);
+      renderTime();
+      if(remaining<=0){beep(1100,.25);nextStep();}
+    },1000);
+  }else{
+    $("counter").classList.remove("small");
+    remaining=ex.reps;
+    $("counter").textContent=remaining;
+    $("hint").textContent="Zak rustig, duw krachtig omhoog";
+    const tempo = parseFloat($("tempo").value)*1000;
+    timer=setInterval(()=>{
+      if(paused) return;
+      remaining--;
+      if(remaining<=3 && remaining>0) beep(850,.08);
+      $("counter").textContent=Math.max(remaining,0);
+      if(remaining<=0){beep(1100,.25);nextStep();}
+    },tempo);
+  }
+}
+
+function startRest(seconds){
+  remaining=seconds;
+  $("phaseLabel").textContent="Rust";
+  $("exerciseName").textContent="Adem rustig";
+  $("setLabel").textContent="Volgende set komt eraan";
+  $("person").textContent="🧘";
+  $("counter").classList.add("small");
+  $("hint").textContent="Pak je houding alvast weer";
+  renderTime();
+  timer=setInterval(()=>{
+    if(paused) return;
+    remaining--;
+    if(remaining<=3 && remaining>0) beep(800,.08);
+    renderTime();
+    if(remaining<=0){beep(1050,.2);nextStep();}
+  },1000);
+}
+
+function renderTime(){
+  const m=String(Math.floor(remaining/60)).padStart(2,"0");
+  const s=String(remaining%60).padStart(2,"0");
+  $("counter").textContent=`${m}:${s}`;
+}
+
+function togglePause(){
+  paused=!paused;
+  $("pauseBtn").textContent=paused?"Doorgaan":"Pauze";
+  $("hint").textContent=paused?"Training gepauzeerd":"Ga door!";
+}
+
+function finish(){
+  clearInterval(timer);
+  $("bar").style.width="100%";
+  const sec=Math.round((Date.now()-startTime)/1000);
+  const min=Math.floor(sec/60), rem=String(sec%60).padStart(2,"0");
+  $("durationText").textContent=`Totale tijd: ${min}:${rem}`;
+
+  const today=new Date().toISOString().slice(0,10);
+  const last=localStorage.getItem("lastWorkout");
+  let streak=parseInt(localStorage.getItem("streak")||"0",10);
+  if(last!==today){
+    const y=new Date(); y.setDate(y.getDate()-1);
+    const yesterday=y.toISOString().slice(0,10);
+    streak = last===yesterday ? streak+1 : 1;
+    localStorage.setItem("streak",streak);
+    localStorage.setItem("lastWorkout",today);
+  }
+  $("streak").textContent=`🔥 ${streak} dag${streak===1?"":"en"} op rij`;
+  $("workoutCard").style.display="none";
+  $("doneCard").style.display="block";
+  beep(1200,.5);
+}
+
+$("startBtn").addEventListener("click",startWorkout);
+$("pauseBtn").addEventListener("click",togglePause);
+$("skipBtn").addEventListener("click",nextStep);
+$("tempo").addEventListener("input",e=>$("tempoValue").textContent=e.target.value);
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+}
+</script>
+</body>
+</html>
